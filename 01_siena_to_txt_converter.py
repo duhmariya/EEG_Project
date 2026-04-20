@@ -78,8 +78,10 @@ def parse_annotation_file(annot_path):
             except:
                 current['seizure_n'] = len(seizures) + 1
 
-        elif line.lower().startswith('file name:'):
-            current['filename'] = line.split(':', 1)[1].strip()
+        if line.lower().startswith('file name:'):
+            fname = line.split(':', 1)[1].strip()
+            fname = fname.replace('PNO', 'PN')  # Fix typo in some annotation files
+            current['filename'] = fname
 
         elif line.lower().startswith('registration start time:'):
             try:
@@ -107,6 +109,9 @@ def parse_annotation_file(annot_path):
 
     # Don't forget the last seizure
     if current.get('filename'):
+        # Fix known typos in Siena annotation files (PNO6 → PN06)
+        if 'filename' in current:
+            current['filename'] = current['filename'].replace('PNO', 'PN')
         seizures.append(current)
 
     return seizures
@@ -115,11 +120,11 @@ def parse_annotation_file(annot_path):
 def extract_seizure_segment(edf_path, reg_start, seiz_start, seiz_end, sfreq=512):
     """
     Extract the seizure segment from an EDF file.
-    Returns numpy array of shape (samples, 16 channels).
+    Returns numpy array of shape (samples, N channels).
     """
     raw = mne.io.read_raw_edf(edf_path, preload=True, verbose=False)
 
-    # Find matching channels (case-insensitive)
+    # Strategy 1: try to match TARGET_CHANNELS by name
     available = [ch.upper().strip() for ch in raw.ch_names]
     target_upper = [ch.upper() for ch in TARGET_CHANNELS]
 
@@ -127,16 +132,26 @@ def extract_seizure_segment(edf_path, reg_start, seiz_start, seiz_end, sfreq=512
     found_channels = []
     for t_ch in target_upper:
         for i, a_ch in enumerate(available):
-            # Match exactly or with spaces stripped
             if a_ch == t_ch or a_ch.replace(' ', '') == t_ch:
                 picks.append(i)
                 found_channels.append(raw.ch_names[i])
                 break
 
-    if len(picks) == 0:
-        raise ValueError(f"No matching channels found in {edf_path}")
+    # Strategy 2: if fewer than 8 matched, take all EEG channels (exclude EKG/ECG/misc)
+    if len(picks) < 8:
+        exclude_keywords = ['EKG', 'ECG', 'EMG', 'EOG', 'STIM', 'TRIG', 'MKR', 'STATUS']
+        picks = []
+        found_channels = []
+        for i, ch in enumerate(raw.ch_names):
+            ch_upper = ch.upper().replace(' ', '')
+            if not any(kw in ch_upper for kw in exclude_keywords):
+                picks.append(i)
+                found_channels.append(ch)
 
-    print(f"   Matched {len(picks)}/16 channels: {found_channels}")
+    if len(picks) == 0:
+        raise ValueError(f"No usable channels found in {edf_path}")
+
+    print(f"   Using {len(picks)} channels: {found_channels[:8]}{'...' if len(found_channels)>8 else ''}")
 
     # Calculate seizure offset from registration start
     reg_start_s  = time_to_seconds(reg_start)

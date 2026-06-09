@@ -326,7 +326,6 @@ MIT License — see [LICENSE](LICENSE) for details.
 ## 🙏 Acknowledgements
 
 - **Brainhack School 2026** organizers and TAs
-- **Professor Po-Lei Lee** — NCU EE Lab
 - **PhysioNet** for open data access
 - **MNE-Python** and **PyTorch Geometric** communities
 

@@ -1,4 +1,4 @@
-# EpiConnectome 🧠⚡
+# EpiConnectome: Source-Space Connectivity and Seizure Severity 🧠⚡
 
 **Source-Level Seizure Severity Classification using Graph Attention Networks**
 
